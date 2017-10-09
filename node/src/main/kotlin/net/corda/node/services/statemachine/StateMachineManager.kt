@@ -15,11 +15,7 @@ import net.corda.core.crypto.SecureHash
 import net.corda.core.crypto.random63BitValue
 import net.corda.core.flows.*
 import net.corda.core.identity.Party
-import net.corda.core.internal.FlowStateMachine
-import net.corda.core.internal.ThreadBox
-import net.corda.core.internal.bufferUntilSubscribed
-import net.corda.core.internal.castIfPossible
-import net.corda.core.internal.uncheckedCast
+import net.corda.core.internal.*
 import net.corda.core.messaging.DataFeed
 import net.corda.core.serialization.SerializationDefaults.CHECKPOINT_CONTEXT
 import net.corda.core.serialization.SerializationDefaults.SERIALIZATION_FACTORY
@@ -290,7 +286,12 @@ class StateMachineManager(val serviceHub: ServiceHubInternal,
     }
 
     private fun onSessionMessage(message: ReceivedMessage) {
-        val sessionMessage = message.data.deserialize<SessionMessage>()
+        val sessionMessage = try {
+            message.data.deserialize<SessionMessage>()
+        } catch (ex: Exception) {
+            logger.error("Received corrupt SessionMessage data from ${message.peer}")
+            return
+        }
         val sender = serviceHub.networkMapCache.getPeerByLegalName(message.peer)
         if (sender != null) {
             when (sessionMessage) {
