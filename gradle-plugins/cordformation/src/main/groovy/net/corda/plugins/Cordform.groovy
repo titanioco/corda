@@ -132,7 +132,7 @@ class Cordform extends DefaultTask {
 
     private generateNodeInfos() {
         nodes.each { Node node ->
-            def process = new ProcessBuilder("java", "-jar", Node.NODEJAR_NAME, "--just-generate-node-info")
+            def process = new ProcessBuilder("java", "-jar", Node.nodeJarName, "--just-generate-node-info")
                     .directory(fullNodePath(node).toFile())
                     .redirectErrorStream(true)
                     .start()
