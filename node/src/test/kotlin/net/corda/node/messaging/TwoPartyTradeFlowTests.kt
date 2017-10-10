@@ -108,8 +108,9 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
             val aliceNode = mockNet.createPartyNode(ALICE.name)
             val bobNode = mockNet.createPartyNode(BOB.name)
             val bankNode = mockNet.createPartyNode(BOC.name)
-            val alice = notaryNode.services.networkMapCache.getPeerByLegalName(ALICE_NAME)!!
-            val bank = notaryNode.services.networkMapCache.getPeerByLegalName(BOC_NAME)!!
+            val alice = aliceNode.services.myInfo.chooseIdentity(ALICE_NAME)
+            val bank = bankNode.services.myInfo.chooseIdentity(BOC_NAME)
+            val bob = bobNode.services.myInfo.chooseIdentity(BOB_NAME)
             val notary = notaryNode.services.getDefaultNotary()
             val cashIssuer = bank.ref(1)
             val cpIssuer = bank.ref(1, 2, 3)
@@ -129,7 +130,7 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
 
             insertFakeTransactions(alicesFakePaper, aliceNode, notaryNode, bankNode)
 
-            val (bobStateMachine, aliceResult) = runBuyerAndSeller(notary, aliceNode, bobNode,
+            val (bobStateMachine, aliceResult) = runBuyerAndSeller(notary, bob, aliceNode, bobNode,
                     "alice's paper".outputStateAndRef())
 
             // TODO: Verify that the result was inserted into the transaction database.
@@ -159,8 +160,9 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
             val aliceNode = mockNet.createPartyNode(ALICE.name)
             val bobNode = mockNet.createPartyNode(BOB.name)
             val bankNode = mockNet.createPartyNode(BOC.name)
-            val alice = notaryNode.services.networkMapCache.getPeerByLegalName(ALICE_NAME)!!
-            val bank = notaryNode.services.networkMapCache.getPeerByLegalName(BOC_NAME)!!
+            val alice = aliceNode.services.myInfo.chooseIdentity(ALICE_NAME)
+            val bank = bankNode.services.myInfo.chooseIdentity(BOC_NAME)
+            val bob = bobNode.services.myInfo.chooseIdentity(BOB_NAME)
             val issuer = bank.ref(1)
             val notary = aliceNode.services.getDefaultNotary()
 
@@ -188,7 +190,7 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
                 }
             }
 
-            val (bobStateMachine, aliceResult) = runBuyerAndSeller(notary, aliceNode, bobNode,
+            val (bobStateMachine, aliceResult) = runBuyerAndSeller(notary, bob, aliceNode, bobNode,
                     "alice's paper".outputStateAndRef())
 
             assertEquals(aliceResult.getOrThrow(), bobStateMachine.getOrThrow().resultFuture.getOrThrow())
@@ -224,8 +226,9 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
             mockNet.runNetwork() // Clear network map registration messages
 
             val notary = notaryNode.services.getDefaultNotary()
-            val alice = notaryNode.services.networkMapCache.getPeerByLegalName(ALICE_NAME)!!
-            val bank = notaryNode.services.networkMapCache.getPeerByLegalName(BOC_NAME)!!
+            val alice = aliceNode.services.myInfo.chooseIdentity(ALICE_NAME)
+            val bank = bankNode.services.myInfo.chooseIdentity(BOC_NAME)
+            val bob = bobNode.services.myInfo.chooseIdentity(BOB_NAME)
             val issuer = bank.ref(1, 2, 3)
 
             bobNode.database.transaction {
@@ -237,7 +240,7 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
                         1200.DOLLARS `issued by` bank.ref(0), null, notary).second
             }
             insertFakeTransactions(alicesFakePaper, aliceNode, notaryNode, bankNode)
-            val aliceFuture = runBuyerAndSeller(notary, aliceNode, bobNode, "alice's paper".outputStateAndRef()).sellerResult
+            val aliceFuture = runBuyerAndSeller(notary, bob, aliceNode, bobNode, "alice's paper".outputStateAndRef()).sellerResult
 
             // Everything is on this thread so we can now step through the flow one step at a time.
             // Seller Alice already sent a message to Buyer Bob. Pump once:
@@ -345,9 +348,9 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
         mockNet.runNetwork()
         notaryNode.internals.ensureRegistered()
         val notary = aliceNode.services.getDefaultNotary()
-        val alice = notaryNode.services.networkMapCache.getPeerByLegalName(ALICE_NAME)!!
-        val bob = notaryNode.services.networkMapCache.getPeerByLegalName(BOB_NAME)!!
-        val bank = notaryNode.services.networkMapCache.getPeerByLegalName(BOC_NAME)!!
+        val alice = aliceNode.services.myInfo.chooseIdentity(ALICE_NAME)
+        val bob = bobNode.services.myInfo.chooseIdentity(BOB_NAME)
+        val bank = bankNode.services.myInfo.chooseIdentity(BOC_NAME)
         val issuer = bank.ref(1, 2, 3)
 
         ledger(aliceNode.services, initialiseSerialization = false) {
@@ -375,7 +378,7 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
 
             mockNet.runNetwork() // Clear network map registration messages
 
-            runBuyerAndSeller(notary, aliceNode, bobNode, "alice's paper".outputStateAndRef())
+            runBuyerAndSeller(notary, bob, aliceNode, bobNode, "alice's paper".outputStateAndRef())
 
             mockNet.runNetwork()
 
@@ -454,8 +457,9 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
         mockNet.runNetwork()
         notaryNode.internals.ensureRegistered()
         val notary = aliceNode.services.getDefaultNotary()
-        val alice = notaryNode.services.networkMapCache.getPeerByLegalName(ALICE_NAME)!!
-        val bank = notaryNode.services.networkMapCache.getPeerByLegalName(BOC_NAME)!!
+        val alice = aliceNode.services.myInfo.chooseIdentity(ALICE_NAME)
+        val bank = bankNode.services.myInfo.chooseIdentity(BOC_NAME)
+        val bob = bobNode.services.myInfo.chooseIdentity(BOB_NAME)
         val issuer = bank.ref(1, 2, 3)
 
         ledger(aliceNode.services, initialiseSerialization = false) {
@@ -489,7 +493,7 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
             val aliceTxMappings = with(aliceNode) {
                 database.transaction { services.stateMachineRecordedTransactionMapping.track().updates }
             }
-            val aliceSmId = runBuyerAndSeller(notary, aliceNode, bobNode,
+            val aliceSmId = runBuyerAndSeller(notary, bob, aliceNode, bobNode,
                     "alice's paper".outputStateAndRef()).sellerId
 
             mockNet.runNetwork()
@@ -549,12 +553,13 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
     )
 
     private fun runBuyerAndSeller(notary: Party,
+                                  buyer: Party,
                                   sellerNode: StartedNode<MockNetwork.MockNode>,
                                   buyerNode: StartedNode<MockNetwork.MockNode>,
                                   assetToSell: StateAndRef<OwnableState>): RunResult {
         val buyerFlows: Observable<out FlowLogic<*>> = buyerNode.internals.registerInitiatedFlow(BuyerAcceptor::class.java)
         val firstBuyerFiber = buyerFlows.toFuture().map { it.stateMachine }
-        val seller = SellerInitiator(buyerNode.info.chooseIdentity(), notary, assetToSell, 1000.DOLLARS, anonymous)
+        val seller = SellerInitiator(buyer, notary, assetToSell, 1000.DOLLARS, anonymous)
         val sellerResult = sellerNode.services.startFlow(seller).resultFuture
         return RunResult(firstBuyerFiber, sellerResult, seller.stateMachine.id)
     }
@@ -610,9 +615,9 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
         mockNet.runNetwork()
         notaryNode.internals.ensureRegistered()
         val notary = aliceNode.services.getDefaultNotary()
-        val alice = notaryNode.services.networkMapCache.getPeerByLegalName(ALICE_NAME)!!
-        val bob = notaryNode.services.networkMapCache.getPeerByLegalName(BOB_NAME)!!
-        val bank = notaryNode.services.networkMapCache.getPeerByLegalName(BOC_NAME)!!
+        val alice = aliceNode.services.myInfo.chooseIdentity(ALICE_NAME)
+        val bob = bobNode.services.myInfo.chooseIdentity(BOB_NAME)
+        val bank = bankNode.services.myInfo.chooseIdentity(BOC_NAME)
         val issuer = bank.ref(1, 2, 3)
 
         val bobsBadCash = bobNode.database.transaction {
@@ -627,7 +632,7 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
 
         mockNet.runNetwork() // Clear network map registration messages
 
-        val (bobStateMachine, aliceResult) = runBuyerAndSeller(notary, aliceNode, bobNode, "alice's paper".outputStateAndRef())
+        val (bobStateMachine, aliceResult) = runBuyerAndSeller(notary, bob, aliceNode, bobNode, "alice's paper".outputStateAndRef())
 
         mockNet.runNetwork()
 
@@ -658,9 +663,10 @@ class TwoPartyTradeFlowTests(val anonymous: Boolean) {
             sigs.add(notaryNode.services.keyManagementService.sign(SignableData(id, SignatureMetadata(1,
                     Crypto.findSignatureScheme(notaryNode.info.legalIdentities[1].owningKey).schemeNumberID)), notaryNode.info.legalIdentities[1].owningKey))
             extraSigningNodes.forEach { currentNode ->
+                val identity = currentNode.info.chooseIdentity()
                 sigs.add(currentNode.services.keyManagementService.sign(
-                        SignableData(id, SignatureMetadata(1, Crypto.findSignatureScheme(currentNode.info.chooseIdentity().owningKey).schemeNumberID)),
-                        currentNode.info.chooseIdentity().owningKey)
+                        SignableData(id, SignatureMetadata(1, Crypto.findSignatureScheme(identity.owningKey).schemeNumberID)),
+                        identity.owningKey)
                 )
             }
             SignedTransaction(it, sigs)
