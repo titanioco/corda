@@ -8,7 +8,6 @@ import com.typesafe.config.ConfigRenderOptions
 import net.corda.client.rpc.CordaRPCClient
 import net.corda.cordform.CordformContext
 import net.corda.cordform.CordformNode
-import net.corda.cordform.NodeDefinition
 import net.corda.core.CordaException
 import net.corda.core.concurrent.CordaFuture
 import net.corda.core.concurrent.firstOf
@@ -147,14 +146,6 @@ interface DriverDSLExposedInterface : CordformContext {
      * @param maximumHeapSize Argument for JVM -Xmx option e.g. "200m".
      */
     fun startWebserver(handle: NodeHandle, maximumHeapSize: String): CordaFuture<WebserverHandle>
-
-    /**
-     * Starts a network map service node. Note that only a single one should ever be running, so you will probably want
-     * to set networkMapStartStrategy to Dedicated(false) in your [driver] call.
-     * @param startInProcess Determines if the node should be started inside this process. If null the Driver-level
-     *     value will be used.
-     */
-    fun startDedicatedNetworkMapService(startInProcess: Boolean? = null, maximumHeapSize: String = "200m"): CordaFuture<NodeHandle>
 
     fun waitForAllNodesToFinish()
 
@@ -308,7 +299,6 @@ data class NodeParameters(
  * @param debugPortAllocation The port allocation strategy to use for jvm debugging. Defaults to incremental.
  * @param systemProperties A Map of extra system properties which will be given to each new node. Defaults to empty.
  * @param useTestClock If true the test clock will be used in Node.
- * @param networkMapStartStrategy Determines whether a network map node is started automatically.
  * @param startNodesInProcess Provides the default behaviour of whether new nodes should start inside this process or
  *     not. Note that this may be overridden in [DriverDSLExposedInterface.startNode].
  * @param dsl The dsl itself.
@@ -323,7 +313,7 @@ fun <A> driver(
         systemProperties: Map<String, String> = defaultParameters.systemProperties,
         useTestClock: Boolean = defaultParameters.useTestClock,
         initialiseSerialization: Boolean = defaultParameters.initialiseSerialization,
-        networkMapStartStrategy: NetworkMapStartStrategy = defaultParameters.networkMapStartStrategy,
+
         startNodesInProcess: Boolean = defaultParameters.startNodesInProcess,
         extraCordappPackagesToScan: List<String> = defaultParameters.extraCordappPackagesToScan,
         dsl: DriverDSLExposedInterface.() -> A
@@ -336,7 +326,6 @@ fun <A> driver(
                     driverDirectory = driverDirectory.toAbsolutePath(),
                     useTestClock = useTestClock,
                     isDebug = isDebug,
-                    networkMapStartStrategy = networkMapStartStrategy,
                     startNodesInProcess = startNodesInProcess,
                     extraCordappPackagesToScan = extraCordappPackagesToScan
             ),
@@ -371,7 +360,6 @@ data class DriverParameters(
         val systemProperties: Map<String, String> = emptyMap(),
         val useTestClock: Boolean = false,
         val initialiseSerialization: Boolean = true,
-        val networkMapStartStrategy: NetworkMapStartStrategy = NetworkMapStartStrategy.Dedicated(startAutomatically = true),
         val startNodesInProcess: Boolean = false,
         val extraCordappPackagesToScan: List<String> = emptyList()
 ) {
@@ -382,7 +370,6 @@ data class DriverParameters(
     fun setSystemProperties(systemProperties: Map<String, String>) = copy(systemProperties = systemProperties)
     fun setUseTestClock(useTestClock: Boolean) = copy(useTestClock = useTestClock)
     fun setInitialiseSerialization(initialiseSerialization: Boolean) = copy(initialiseSerialization = initialiseSerialization)
-    fun setNetworkMapStartStrategy(networkMapStartStrategy: NetworkMapStartStrategy) = copy(networkMapStartStrategy = networkMapStartStrategy)
     fun setStartNodesInProcess(startNodesInProcess: Boolean) = copy(startNodesInProcess = startNodesInProcess)
     fun setExtraCordappPackagesToScan(extraCordappPackagesToScan: List<String>) = copy(extraCordappPackagesToScan = extraCordappPackagesToScan)
 }
@@ -598,7 +585,6 @@ class DriverDSL(
         val driverDirectory: Path,
         val useTestClock: Boolean,
         val isDebug: Boolean,
-        val networkMapStartStrategy: NetworkMapStartStrategy,
         val startNodesInProcess: Boolean,
         val extraCordappPackagesToScan: List<String>
 ) : DriverDSLInternalInterface {
@@ -664,25 +650,6 @@ class DriverDSL(
         }
     }
 
-    private fun networkMapServiceConfigLookup(networkMapCandidates: List<NodeDefinition>): (CordaX500Name) -> Map<String, String>? {
-        return networkMapStartStrategy.run {
-            when (this) {
-                is NetworkMapStartStrategy.Dedicated -> {
-                    serviceConfig(dedicatedNetworkMapAddress).let {
-                        { _: CordaX500Name -> it }
-                    }
-                }
-                is NetworkMapStartStrategy.Nominated -> {
-                    serviceConfig(networkMapCandidates.single {
-                        it.name == legalName.toString()
-                    }.config.getString("p2pAddress").let(NetworkHostAndPort.Companion::parse)).let {
-                        { nodeName: CordaX500Name -> if (nodeName == legalName) null else it }
-                    }
-                }
-            }
-        }
-    }
-
     override fun startNode(
             defaultParameters: NodeParameters,
             providedName: CordaX500Name?,
@@ -698,10 +665,6 @@ class DriverDSL(
         val webAddress = portAllocation.nextHostAndPort()
         // TODO: Derive name from the full picked name, don't just wrap the common name
         val name = providedName ?: CordaX500Name(organisation = "${oneOf(names).organisation}-${p2pAddress.port}", locality = "London", country = "GB")
-        val networkMapServiceConfigLookup = networkMapServiceConfigLookup(listOf(object : NodeDefinition {
-            override fun getName() = name.toString()
-            override fun getConfig() = configOf("p2pAddress" to p2pAddress.toString())
-        }))
         val config = ConfigHelper.loadConfig(
                 baseDirectory = baseDirectory(name),
                 allowMissingConfig = true,
@@ -711,7 +674,6 @@ class DriverDSL(
                         "rpcAddress" to rpcAddress.toString(),
                         "webAddress" to webAddress.toString(),
                         "extraAdvertisedServiceIds" to advertisedServices.map { it.toString() },
-                        "networkMapService" to networkMapServiceConfigLookup(name),
                         "useTestClock" to useTestClock,
                         "rpcUsers" to if (rpcUsers.isEmpty()) defaultRpcUserList else rpcUsers.map { it.toMap() },
                         "verifierType" to verifierType.name
@@ -730,7 +692,6 @@ class DriverDSL(
     }
 
     override fun startNodes(nodes: List<CordformNode>, startInSameProcess: Boolean?, maximumHeapSize: String): List<CordaFuture<NodeHandle>> {
-        val networkMapServiceConfigLookup = networkMapServiceConfigLookup(nodes)
         return nodes.map { node ->
             portAllocation.nextHostAndPort() // rpcAddress
             val webAddress = portAllocation.nextHostAndPort()
@@ -742,7 +703,6 @@ class DriverDSL(
                     allowMissingConfig = true,
                     configOverrides = node.config + notary + mapOf(
                             "extraAdvertisedServiceIds" to node.advertisedServices,
-                            "networkMapService" to networkMapServiceConfigLookup(name),
                             "rpcUsers" to if (rpcUsers.isEmpty()) defaultRpcUserList else rpcUsers
                     )
             )
@@ -831,9 +791,7 @@ class DriverDSL(
         _shutdownManager = ShutdownManager(executorService)
         // We set this property so that in-process nodes find cordapps. Out-of-process nodes need this passed in when started.
         setCordappPackages(*packagesToScanString.toTypedArray())
-        if (networkMapStartStrategy.startDedicated) {
-            startDedicatedNetworkMapService().andForget(log) // Allow it to start concurrently with other nodes.
-        }
+        // TODO
     }
 
     fun baseDirectory(nodeName: CordaX500Name): Path {
@@ -843,26 +801,6 @@ class DriverDSL(
     }
 
     override fun baseDirectory(nodeName: String): Path = baseDirectory(CordaX500Name.parse(nodeName))
-
-    override fun startDedicatedNetworkMapService(startInProcess: Boolean?, maximumHeapSize: String): CordaFuture<NodeHandle> {
-        val webAddress = portAllocation.nextHostAndPort()
-        val rpcAddress = portAllocation.nextHostAndPort()
-        val networkMapLegalName = networkMapStartStrategy.legalName
-        val config = ConfigHelper.loadConfig(
-                baseDirectory = baseDirectory(networkMapLegalName),
-                allowMissingConfig = true,
-                configOverrides = configOf(
-                        "myLegalName" to networkMapLegalName.toString(),
-                        // TODO: remove the webAddress as NMS doesn't need to run a web server. This will cause all
-                        //       node port numbers to be shifted, so all demos and docs need to be updated accordingly.
-                        "webAddress" to webAddress.toString(),
-                        "rpcAddress" to rpcAddress.toString(),
-                        "rpcUsers" to defaultRpcUserList,
-                        "p2pAddress" to dedicatedNetworkMapAddress.toString(),
-                        "useTestClock" to useTestClock)
-        )
-        return startNodeInternal(config, webAddress, startInProcess, maximumHeapSize)
-    }
 
     private fun startNodeInternal(config: Config, webAddress: NetworkHostAndPort, startInProcess: Boolean?, maximumHeapSize: String): CordaFuture<NodeHandle> {
         val nodeConfiguration = config.parseAs<FullNodeConfiguration>()
