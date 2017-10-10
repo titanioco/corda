@@ -29,7 +29,7 @@ class CordappPlugin : Plugin<Project> {
     private fun configureCordappJar(project: Project) {
         // Note: project.afterEvaluate did not have full dependency resolution completed, hence a task is used instead
         val task = project.task("configureCordappFatJar")
-        val jarTask = project.task("jar") as Jar
+        val jarTask = project.tasks.getByName("jar") as Jar
         task.doLast {
             jarTask.from(getDirectNonCordaDependencies(project).map { project.zipTree(it)}).apply {
                 exclude("META-INF/*.SF")

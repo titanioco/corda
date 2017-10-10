@@ -28,9 +28,10 @@ class Node(private val project: Project) : CordformNode() {
      *
      * @note Your app will be installed by default and does not need to be included here.
      */
-    private val cordapps = mutableListOf<String>()
-    private lateinit var nodeDir: File
-    private val releaseVersion = project.ext<String>("corda_release_version")
+    var cordapps = mutableListOf<String>()
+
+    private val releaseVersion = project.rootProject.ext<String>("corda_release_version")
+    internal lateinit var nodeDir: File
 
     /**
      * Sets whether this node will use HTTPS communication.
@@ -87,7 +88,7 @@ class Node(private val project: Project) : CordformNode() {
                 ConfigValueFactory.fromAnyRef("$DEFAULT_HOST:$sshdPort"))
     }
 
-    protected fun build() {
+    internal fun build() {
         configureProperties()
         installCordaJar()
         if (config.hasPath("webAddress")) {
@@ -108,7 +109,7 @@ class Node(private val project: Project) : CordformNode() {
         return config.getString("p2pAddress")
     }
 
-    private fun rootDir(rootDir: Path) {
+    internal fun rootDir(rootDir: Path) {
         val dirName = try {
             X500Name(name).getRDNs(BCStyle.O)[0].first.value.toString()
         } catch(_ : IllegalArgumentException) {
@@ -164,7 +165,7 @@ class Node(private val project: Project) : CordformNode() {
         val pluginsDir = File(nodeDir, "plugins")
         project.copy {
             it.apply {
-                from(project.task("jar"))
+                from(project.tasks.getByName("jar"))
                 into(pluginsDir)
             }
         }

@@ -5,9 +5,9 @@ import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.ExtraPropertiesExtension
 
-fun Project.task(name: String): Task = tasks.single { it.name == name }
+@Suppress("UNCHECKED_CAST")
+fun<T : Any> Project.ext(name: String): T = (extensions.findByName("ext") as ExtraPropertiesExtension).get(name) as T
 fun Project.configuration(name: String): Configuration = configurations.single { it.name == name }
-fun<T : Any> Project.ext(name: String): T = (configuration("ext") as ExtraPropertiesExtension).get(name) as T
 
 class Utils {
     companion object {
