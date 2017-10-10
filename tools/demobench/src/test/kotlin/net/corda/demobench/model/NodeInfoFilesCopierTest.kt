@@ -66,9 +66,6 @@ class NodeInfoFilesCopierTest {
         nodeInfoFilesCopier.addConfig(node2Config)
         advanceTime()
 
-        // Give some time to the filesystem to report the change.
-        Thread.sleep(100)
-
         eventually<AssertionError, Unit>(Duration.ofMinutes(1)) {
             // Check only one file is copied.
             checkDirectoryContainsSingleFile(node2AdditionalNodeInfoPath, GOOD_NODE_INFO_NAME)
