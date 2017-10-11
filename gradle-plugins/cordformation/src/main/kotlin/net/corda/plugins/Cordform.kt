@@ -115,6 +115,7 @@ open class Cordform : DefaultTask() {
     @Suppress("unused")
     @TaskAction
     fun build() {
+        project.logger.info("Running Cordform task")
         initializeConfiguration()
         installRunScript()
         nodes.forEach {
@@ -143,6 +144,7 @@ open class Cordform : DefaultTask() {
     private fun fullNodePath(node: Node): Path = project.projectDir.toPath().resolve(node.nodeDir.toPath())
 
     private fun generateNodeInfos() {
+        project.logger.info("Generating node infos")
         nodes.map { node ->
             ProcessBuilder("java", "-jar", Node.nodeJarName, "--just-generate-node-info")
                     .directory(fullNodePath(node).toFile())
