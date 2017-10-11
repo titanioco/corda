@@ -383,12 +383,7 @@ class StateMachineManager(val serviceHub: ServiceHubInternal,
             updateCheckpoint(fiber)
             session to initiatedFlowFactory
         } catch (e: SessionRejectException) {
-            // TODO: Handle this more gracefully
-            try {
-                logger.warn("${e.logMessage}: $sessionInit")
-            } catch (e: Throwable) {
-                logger.warn("Problematic session init message during logging", e)
-            }
+            logger.warn("${e.logMessage}: $sessionInit")
             sendSessionReject(e.rejectMessage)
             return
         } catch (e: Exception) {
