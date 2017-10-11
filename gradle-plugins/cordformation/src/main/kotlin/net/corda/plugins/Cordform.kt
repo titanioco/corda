@@ -153,6 +153,7 @@ open class Cordform : DefaultTask() {
         }.forEach {
             it.waitFor()
         }
+        project.logger.info("Node infos generated")
         for (source in nodes) {
             for (destination in nodes) {
                 if (source.nodeDir != destination.nodeDir) {
